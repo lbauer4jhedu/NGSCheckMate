@@ -413,7 +413,11 @@ def createDataSetFromList(base_list, bedFile, exec_for_data=None):
 ## TOTAL is not 1 or total is 1 cases
         if total == 1:
             mean_depth[file] = depth[file] / float(count)
-            real_depth[file] = depth[file] / float(real_count[file])
+            if real_count[file] == 0:
+                print("Warning: Sample region depth is too low < 1. Confirm that Variant ID values are present in", link, "data.")
+                real_depth[file] = 0.0
+            else:
+                real_depth[file] = depth[file] / float(real_count[file])
             sum_file[file] = sum[file]
 
             for key in features:
