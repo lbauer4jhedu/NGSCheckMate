@@ -4,6 +4,7 @@ import subprocess, time
 import argparse
 from argparse import RawTextHelpFormatter
 from subprocess import call
+import copy
 
 global bed_file
 global outdir
@@ -247,11 +248,21 @@ def createDataSetFromDir(base_dir, bedFile):
         label.append(key)
 
 #create dataset from the VCF list files
-def createDataSetFromList(base_list, bedFile):
+def createDataSetFromList(base_list, bedFile, exec_for_data=None):
     base_F = open(base_list,'r')
     for line in base_F.readlines():
         link = line.strip()
-        f = open(link, "r")
+        f = None
+        f_lines = list()
+        exec_list = copy.deepcopy(exec_for_data)
+        if exec_list:
+            exec_list.append(link)  # command and arguments
+            with subprocess.Popen(exec_list, stdout=subprocess.PIPE, text=True) as proc:
+                f = proc.stdout  # Use proc.stdout as the file-like object for reading VCF lines
+                f_lines = f.readlines()
+        else:
+            f = open(link, "r")
+            f_lines = f.readlines()
         dbsnpf= open(bedFile,"r")
         file = os.path.basename(link)
         depth = dict()
@@ -281,7 +292,7 @@ def createDataSetFromList(base_list, bedFile):
         #VCF file PROCESSING  and Generation of features
         total = 0
         GVCF_samples = dict()
-        for i in f.readlines():        
+        for i in f_lines:        
             if i.startswith("#"):
                 if i.find("DP4") != -1:
                     vcf_flag = 1
@@ -1374,10 +1385,11 @@ if __name__ == '__main__':
 
     Eg.  :   ncm.py -V -l /data/vcf_list.txt -bed /data/SNP_hg19.bed -O /data/output/ -N Matched_list
              ncm.py -V -d /data/vcf/ -bed /data/SNP_hg19.bed -O /data/output -N Matched_list
+             ncm.py -V -x /data/vcf_args_list.txt -bed /data/SNP_hg19.bed -O /data/output/ -N Matched_list
              ncm.py -B -d /data/bam/ -bed /data/SNP_hg19.bed -O /data/output -N Matched_list
              ncm.py -B -l /data/bam_list.txt -bed /data/SNP_hg19.bed -O /data/output/ -N Matched_list
 
-    Sejoon Lee, Soo Lee, Eunjung Lee, 2023
+    Originally Sejoon Lee, Soo Lee, Eunjung Lee, 2023
     """
 
     parser = argparse.ArgumentParser(description=help, formatter_class=RawTextHelpFormatter)
@@ -1389,6 +1401,7 @@ if __name__ == '__main__':
 
     group.add_argument('-l','--list',metavar='data_list',dest='datalist',action='store', help='data list')
     group.add_argument('-d','--dir',metavar='data_dir',dest='datadir',action='store', help='data directory')
+    group.add_argument('-x','--execute',metavar='data_execute',dest='dataexec',action='store', help='data exeute list')
 
     parser.add_argument('-bed','--bedfile',metavar='BED file',required=True,dest='bed_file',action='store', help='A bed file containing SNP polymorphisms')
 
@@ -1408,6 +1421,8 @@ if __name__ == '__main__':
 
     if args.datalist != None :
         base_list = args.datalist
+    if args.dataexec != None :
+        base_list = args.dataexec
     if args.datadir != None :
         base_dir = args.datadir
         
@@ -1472,6 +1487,22 @@ if __name__ == '__main__':
                 classifying_test()
             else:
                 createDataSetFromList(base_list,bedFile)
+                classifying()
+        elif args.dataexec != None :
+            if "EXEC_CMD" in os.environ.keys():
+                EXEC_CMD = eval(os.environ['EXEC_CMD'])
+            else:
+                print("WARNNING : EXEC_CMD is not defined but the dataexec argument supplied, exiting now.")
+                exit(1)
+
+            print("Generate Data Set from args in " + base_list + "\nand command: '" + str(EXEC_CMD) + "'\nusing this bed file : " + bedFile)
+            if args.testsamplename != None:
+                testsamplename = args.testsamplename
+                createDataSetFromList_TEST(base_list,bedFile,"1",EXEC_CMD)
+                createDataSetFromList_TEST(base_list,bedFile,"2",EXEC_CMD)
+                classifying_test()
+            else:
+                createDataSetFromList(base_list,bedFile,EXEC_CMD)
                 classifying()
 
 
